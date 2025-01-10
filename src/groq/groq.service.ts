@@ -44,10 +44,10 @@ export class GroqService {
     try {
       const response = await this.groq.chat.completions.create({
         messages: [
-          {
-            role: 'system',
-            content: systemMessage,
-          },
+          // {
+          //   role: 'system',
+          //   content: systemMessage,
+          // },
           { role: 'user', content: userMessage },
         ],
         model: process.env['MODEL'],
