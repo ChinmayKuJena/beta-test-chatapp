@@ -32,6 +32,7 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     // Check session in Redis
     const session = await this.redisService.get(`session:${username}`);
+    console.log(session);
     
     if (!session || session.roomId !== roomId) {
       client.emit('error', 'Invalid session or room ID.');
