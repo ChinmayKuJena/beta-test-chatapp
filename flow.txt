@@ -1,0 +1,13 @@
+// proper login with single device
+// store users loggedIn users in redis for session management
+//auth gurd...
+
+for socket connection take the username and roomid from clint check in redis then connection estblish
+for sending messages clint have to send jwt token,roomId in header and in user message , username in request body  
+also need auth gurd for socket 
+
+// todo proper connection and auth in gurd 
+then disconnect 
+then sending message (userName,roomid,token in header) {clint=>server}
+then getting message() in server
+then sending message() to clint 
