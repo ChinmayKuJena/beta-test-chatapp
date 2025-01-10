@@ -11,29 +11,29 @@ import { UseGuards } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { RedisService } from 'src/redis/redis.service';
 import { AuthGuard } from 'src/auth/web.auth';
+import { GroqService } from 'src/groq/groq.service'; // Import the AI service
 
-@WebSocketGateway({ namespace:'/mychat',cors: true })
+@WebSocketGateway({ namespace: '/mychat', cors: true })
 export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly groqService: GroqService, // Inject AI service
+  ) {}
 
   async handleConnection(client: Socket) {
-   
     const { username, roomId } = client.handshake.query;
 
     if (!username || !roomId) {
-      console.log("Wrong RoomId");
-      
+      console.log('Wrong RoomId');
       client.disconnect(true); // Disconnect if username or roomId is missing
       return;
     }
 
     // Check session in Redis
     const session = await this.redisService.get(`session:${username}`);
-    console.log(session);
-    
     if (!session || session.roomId !== roomId) {
       client.emit('error', 'Invalid session or room ID.');
       client.disconnect(true);
@@ -41,7 +41,7 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     client.join(roomId); // Add client to the specified room
-    this.server.to(roomId).emit('message', `{}${username} has joined the room.`);
+    this.server.to(roomId).emit('message', `${username} has joined the room.`);
   }
 
   async handleDisconnect(client: Socket) {
@@ -59,14 +59,28 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
   ) {
     const { username, message } = data;
     const { roomId } = client.handshake.query;
-    console.log(message);
-    
+
     if (!roomId) {
       client.emit('error', 'Room ID missing.');
       return;
     }
 
-    // Broadcast message to the room
+    // Broadcast user's message to the room
     this.server.to(roomId).emit('message', { username, message });
+
+    // Generate AI response using GroqService
+    try {
+      const aiResponse = await this.groqService.getChatCompletionWithPrompt(message);
+      if (aiResponse && aiResponse.content) {
+        // Send AI response to the same room
+        this.server.to(roomId).emit('message', {
+          username: 'AI Assistant',
+          message: aiResponse.content,
+        });
+      }
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      client.emit('error', 'Failed to generate AI response.');
+    }
   }
 }
