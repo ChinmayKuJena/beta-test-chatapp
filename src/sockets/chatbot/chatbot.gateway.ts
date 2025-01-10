@@ -66,7 +66,7 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     // Broadcast user's message to the room
-    this.server.to(roomId).emit('message', { username, message });
+    // this.server.to(roomId).emit('message', { username, message });
 
     // Generate AI response using GroqService
     try {
