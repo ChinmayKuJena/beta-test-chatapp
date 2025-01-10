@@ -59,7 +59,7 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
   ) {
     const { username, message } = data;
     const { roomId } = client.handshake.query;
-    // console.log(message);
+    console.log(message);
     
     if (!roomId) {
       client.emit('error', 'Room ID missing.');
