@@ -10,8 +10,8 @@ import { RedisService } from 'src/redis/redis.service';
 @Injectable()
 export class UsersService {
   private users: Map<string, { password: string; email: string }> = new Map([
-    ['Admin1', { password: 'Chinmay09', email: 'chinmay09jena@gmail.com' }],
-    ['Admin2', { password: 'Xyz12309@', email: 'xyz@gmail.com' }],
+    ['Chinmay09', { password: 'Chinmay09', email: 'chinmay09jena@gmail.com' }],
+    ['User2', { password: '123456', email: 'xyz@gmail.com' }],
   ]);
 
   constructor(private readonly redisService: RedisService) {}
@@ -57,7 +57,9 @@ export class UsersService {
 
     // Set session in Redis with TTL (18 hours)
     await this.redisService.set(`session:${username}`, sessionData); // 18 hours TTL
-
+    console.log(sessionData);
+    console.log(claims);
+    
     return { claims, token };
   }
 
