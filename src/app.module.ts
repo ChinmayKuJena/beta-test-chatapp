@@ -26,10 +26,10 @@ import { AuthGuard } from './auth/web.auth';
   providers: [
     AppService,
     ChatGateway,
-    {
-      provide: APP_GUARD,
-      useClass: AuthGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: AuthGuard,
+    // },
   ],
 })
 export class AppModule {}

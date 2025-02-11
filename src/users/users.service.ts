@@ -57,8 +57,8 @@ export class UsersService {
 
     // Set session in Redis with TTL (18 hours)
     await this.redisService.set(`session:${username}`, sessionData); // 18 hours TTL
-    console.log(sessionData);
-    console.log(claims);
+    console.log("sessionData",sessionData);
+    console.log("claims",claims);
     
     return { claims, token };
   }

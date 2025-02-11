@@ -14,7 +14,9 @@ import { AuthGuard } from 'src/auth/web.auth';
 import { GroqService } from 'src/groq/groq.service';
 
 @WebSocketGateway({ namespace: '/mychat', cors: true })
-export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatbotGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -33,16 +35,29 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
     }
 
     try {
-      // Verify session from Redis
-      const session = await this.redisService.get(`session:${username}`);
-      if (!session || session.roomId !== roomId) {
-        client.emit('error', 'Invalid session or room ID.');
-        client.disconnect(true);
-        return;
-      }
+      // Check if the user has joined before
+      const greeted = await this.redisService.get(`greeted:${username}`);
 
-      client.join(roomId); // Add client to room
-      this.server.to(roomId).emit('message', `${username} has joined the room.`);
+      client.join(roomId);
+      this.server
+        .to(roomId)
+        .emit('message', `${username} has joined the room.`);
+
+      // Send greeting only if user hasn't been greeted before
+      if (!greeted) {
+        const greetingMessage =
+          await this.groqService.getChatCompletionWithPrompt(
+            `Greet the user ${username} warmly and introduce yourself.`,
+            username,
+          );
+        this.server.to(roomId).emit('message', {
+          username: 'AI Assistant',
+          message: greetingMessage.content,
+        });
+
+        // Mark user as greeted
+        await this.redisService.set(`greeted:${username}`, 'true', 3600); // Expire in 1 hour
+      }
     } catch (error) {
       console.error('Error handling connection:', error);
       client.disconnect(true);
@@ -74,21 +89,46 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
     const timestamp = new Date().toISOString();
 
     try {
-      // Save user message to Redis hash
-      const userMessageKey = `${timestamp}:user:${username}`;
-      await this.redisService.hset(hashKey, userMessageKey, message);
+      // Save user message to Redis
+      // const userMessageKey = `${timestamp}:user:${username}`;
+      // await this.redisService.hashOperation(
+      //   'set',
+      //   hashKey,
+      //   userMessageKey,
+      //   message,
+      // );
 
-      // Broadcast user's message to the room
+      // Broadcast user's message
       this.server.to(roomId).emit('message', { username, message });
 
-      // Generate and broadcast AI response
-      const aiResponse = await this.groqService.getChatCompletionWithPrompt(message);
+      // Check if the user is already greeted
+      const greeted = await this.redisService.get(`greeted:${username}`);
+
+      let aiResponse;
+      if (!greeted) {
+        // First-time response with a greeting
+        aiResponse = await this.groqService.getChatCompletionWithPrompt(
+          `Greet the user ${username} warmly and introduce yourself.`,
+          username,
+        );
+        await this.redisService.set(`greeted:${username}`, 'true', 3600); // Set greeting flag
+      } else {
+        // Normal AI response
+        aiResponse =
+          await this.groqService.getChatCompletionWithPrompt(message);
+      }
+
       if (aiResponse?.content) {
         const aiMessageKey = `${timestamp}:ai`;
         const aiMessage = aiResponse.content;
-
-        // Save AI message to Redis hash
-        await this.redisService.hset(hashKey, aiMessageKey, aiMessage);
+        // TODO
+        // // Save AI response to Redis
+        // await this.redisService.hashOperation(
+        //   'set',
+        //   hashKey,
+        //   aiMessageKey,
+        //   aiMessage,
+        // );
 
         this.server.to(roomId).emit('message', {
           username: 'AI Assistant',
@@ -98,35 +138,6 @@ export class ChatbotGateway implements OnGatewayConnection, OnGatewayDisconnect 
     } catch (error) {
       console.error('Error processing message:', error);
       client.emit('error', 'Failed to process the message.');
-    }
-  }
-
-  @SubscribeMessage('getHistory')
-  async getChatHistory(
-    @MessageBody() data: { roomId: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    const { roomId } = data;
-
-    if (!roomId) {
-      client.emit('error', 'Room ID missing.');
-      return;
-    }
-
-    try {
-      const chatHistory = await this.redisService.hgetall(`chat:${roomId}`);
-      const sortedHistory = Object.entries(chatHistory)
-        .sort(([keyA], [keyB]) => keyA.localeCompare(keyB)) // Sort by timestamp
-        .map(([key, value]) => ({
-          sender: key.includes(':user:') ? key.split(':user:')[1] : 'AI Assistant',
-          timestamp: key.split(':')[0],
-          message: value,
-        }));
-
-      client.emit('chatHistory', sortedHistory);
-    } catch (error) {
-      console.error('Error retrieving chat history:', error);
-      client.emit('error', 'Failed to retrieve chat history.');
     }
   }
 }
